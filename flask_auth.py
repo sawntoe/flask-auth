@@ -89,7 +89,7 @@ class AuthenticationManager:
         response.set_cookie("auth", token, expires=expire_date,secure=True,httponly=True)
         return response
 
-    def register(self, username: str, password: str, groups: list[str]) -> None:
+    def register(self, username: str, password: str, groups: list[str] = []) -> None:
         """
         Register a user.
         """
