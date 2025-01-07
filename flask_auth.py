@@ -14,9 +14,9 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.extensions
 
-from flask_auth import errors.auth.login
-from flask_auth import errors.auth.generic
-from flask_auth import errors.auth.registration
+from .errors.auth.login import AuthenticationFailure
+from .errors.auth.generic import PasswordValidationError
+from .errors.auth.registration import UserAlreadyExists
 
 
 class AuthenticationManager:
@@ -85,6 +85,7 @@ class AuthenticationManager:
         Can be called externally without consequences.
         """
         token = self.create_session_token(uid, expiry) 
+        expire_date = expire_date + expiry
         response.set_cookie("auth", token, expires=expire_date,secure=True,httponly=True)
         return response
 
@@ -100,7 +101,7 @@ class AuthenticationManager:
         phash = self._sha256hash(password, salt)
         cur.execute("SELECT * FROM users WHERE username=%s", (username,))
         if cur.fetchone():
-            raise errors.auth.registration.UserAlreadyExists
+            raise UserAlreadyExists
         uid = str(uuid4())
         cur.execute(
             "INSERT INTO users (id, username, hash, salt, groups) VALUES (%s, %s, %s, %s, %s)",
@@ -119,11 +120,11 @@ class AuthenticationManager:
         )
         user = cur.fetchone()
         if user is None:
-            raise errors.auth.login.AuthenticationFailure
+            raise AuthenticationFailure
         phash = self._sha256hash(password, user[3])
         print(phash)
         if phash != user[2]:
-            raise errors.auth.login.AuthenticationFailure(f"{phash} {user[2]}")
+            raise AuthenticationFailure(f"{phash} {user[2]}")
         cur.execute("DELETE FROM sessions WHERE id=%s", (user[0],))
 
         if self.config:
@@ -162,7 +163,7 @@ class AuthenticationManager:
         cur.execute("SELECT hash, salt FROM users WHERE id=%s", (uid,))
         phash, salt = cur.fetchone()
         if self._sha256hash(old_password, salt) != phash:
-            raise errors.auth.generic.PasswordValidationError
+            raise PasswordValidationError
         salt = "".join(
             secrets.choice(string.ascii_letters + string.digits + string.punctuation)
             for _ in range(64)
